@@ -1,0 +1,482 @@
+---
+title: "Analysis - Final"
+author: "Chirita Andrei"
+date: "2/15/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+rm(list = ls())
+library(readxl)
+library(ggplot2)
+library(gridExtra)
+source("UtilityFunctions.R")
+```
+
+```{r}
+data<-read_excel("Exp01_résultats_brut_totauxJ21.xlsx")
+#str(data)
+avgs<-get_nblocks(data)
+avgs
+#avgs
+```
+
+# 10 monkeys - 12 phases
+
+## Testing the practice effect
+
+In this part, we make a test on the practice effect. To do so, we use an ANOVA test, with the null hypothesis : H_0 :  << the means of the different groups are the same >>. Then the alternative hypothesis will be : H_1 :  << At least one sample mean is not equal to the others >>
+
+```{r}
+avgs3<-keep_phases(avgs,1:12)
+#avgs3
+avgs3<-avgs3[avgs3$Type=="train1",]
+avgs3$Phase<-as.factor(avgs3$Phase)
+summary(aov(Blocks~Phase,data=avgs3))
+print(paste("We obtain a "))
+```
+
+We obtain a p-value equal to 0.545 which is above 0.05. We then don't reject the null hypothesis.
+
+We can conclude that there is no significant difference between the means of the 3 groups.
+
+The null hypothesis H_0 :  << the means of the different groups are the same >> is accepted.
+
+Thus, we have no practice effect.
+
+## Difference of length between train1 and train2
+
+### Normality of the data
+
+In this part, we must decide if there is a difference in length between train 1 and train 2. To do so, we would like to perform a t-test over the length of phases train1 and train2. In order to do that, we would need the variable <<length of phase train1>> and the variable <<length of phase train2>> to follow a normal law. To check that, we perform the Shapiro-wink normality test for each type of phase, under the null hypothesis H_0 : <<The length of the phases of this type are normally distributed>>. The alternative hypothesis is then H_1 <<The length of the phases of this type are not normally distributed>>
+
+```{r}
+avgs4<-keep_phases(avgs,1:12)
+#avgs4
+avgs4<-avgs4[avgs4$Type=="train1"|avgs4$Type=="train2",]
+avgs4$Phase<-as.factor(avgs4$Type)
+shapiro.test(avgs4$Blocks[avgs4$Type=="train1"])
+shapiro.test(avgs4$Blocks[avgs4$Type=="train2"])
+#summary(aov(Blocks~Phase,data=avgs3))
+#plot(density(avgs4$Blocks[avgs4$Type=="train2"]))
+```
+For the phases train1, we found a p-value of 0.0002814, which is below 0.05. We reject the null hypothesis and consider that the data doesn't follow a normal law.
+
+For the phases train2, we found a p-value of 0.006807, which is below 0.05. We reject the null hypothesis and consider that the data doesn't follow a normal law.
+
+As the two series are not normally distributed, we chose to perform a Wilcoxson test instead of a t-test.
+
+### Wilcoxson test
+
+We then do the Wilcoxson test under the null hypothesis H_0 : <<the distribution of length of phases train1 and phases train2 are the same>>. The alternative hypothesis is H_1 : <<the distribution are not the same>>
+
+```{r message=FALSE, warning=FALSE}
+wilcox.test(avgs4$Blocks[avgs4$Type=="train1"],avgs4$Blocks[avgs4$Type=="train2"], paired=TRUE)
+#aggregate(Blocks~Type,data=avgs4,mean)
+```
+As the p-value is 0.1746, which is above 0.05, we can't reject the null hypothesis. We then consider that the length of the phases train1 and the phases train2 have the same average.
+
+## Difference of length between renv and renvCrois
+
+### Normality of the data
+
+In this part, we must decide if there is a difference in length between renv and renvCrois.
+To do so, we would like to perform a t-test over the length of phases renv and renvCrois.
+In order to do that, we would need the variable <<length of phase renv>> and the variable <<length of phase renvCrois>> to follow a normal law. To check that, we perform the Shapiro-wink normality test for each type of phase, under the null hypothesis H_0 : <<The length of the phases of this type are normally distributed>>. The alternative hypothesis is then H_1 <<The length of the phases of this type are not normally distributed>>
+
+```{r}
+avgs5<-keep_phases(avgs,1:12)
+#avgs5
+step<-seq(from=2,to=nrow(avgs5),by=2)
+avgs51<-do.call(rbind,lapply(step,function(i){data.frame(Name=avgs5$Name[i],Phase=avgs5$Phase[i],Type=avgs5$Type[i],Blocks=log(avgs5$Blocks[i]/avgs5$Blocks[i-1]))}))
+#aggregate(Blocks~Type,data=avgs51,mean)
+shapiro.test(avgs51$Blocks[avgs51$Type=="renv"])
+shapiro.test(avgs51$Blocks[avgs51$Type=="renvCrois"])
+```
+For the phases renv, we found a p-value of 0.005033, which is below 0.05. We reject the null hypothesis and consider that the data doesn't follow a normal law.
+
+For the phases renvCrois, we found a p-value of 0.0119, which is below 0.05. We reject the null hypothesis and consider that the data doesn't follow a normal law.
+
+As the two series are not normally distributed, we chose to perform a Wilcoxson test instead of a t-test.
+
+### Wilcoxson test
+
+We then do the Wilcoxson test under the null hypothesis H_0 : <<the distribution of length of phases renv and phases renvCrois are the same>>. The alternative hypothesis is H_1 : <<the distribution are not the same>>
+```{r}
+?wilcox.test
+wilcox.test(avgs51$Blocks[avgs51$Type=="renv"],avgs51$Blocks[avgs51$Type=="renvCrois"], paired = TRUE, alternative = "less")
+```
+As the p-value is 0.0853, which is above 0.05, we can't reject the null hypothesis. We then consider that the length of the phases renv and the phases renvCrois have the same average.
+
+```{r}
+ggplot(avgs51)+aes(x=Type,y=Blocks)+geom_boxplot()
+```
+
+# 20 Monkeys - 4 phases
+
+```{r}
+data20monkeys <- keep_phases(avgs, 1:4)
+data20monkeys
+```
+## See if train 1 is different from train 2
+```{r}
+dataTrain<-data20monkeys[data20monkeys$Type=="train1"|data20monkeys$Type=="train2",]
+dataTrain$Phase<-as.factor(dataTrain$Type)
+shapiro.test(dataTrain$Blocks[dataTrain$Type=="train1"])
+shapiro.test(dataTrain$Blocks[dataTrain$Type=="train2"])
+```
+
+```{r}
+wilcox.test(dataTrain$Blocks[dataTrain$Type=="train1"], dataTrain$Blocks[dataTrain$Type=="train2"], paired = TRUE)
+
+```
+
+Conclusion : We can use train 1 and train 2 interchangeably
+
+## See The difference between renv and rencCrois
+
+```{r}
+step<-seq(from=2,to=nrow(data20monkeys),by=2)
+avgsTrain<-do.call(rbind,lapply(step,function(i){data.frame(Name=data20monkeys$Name[i],Phase=data20monkeys$Phase[i],Type=data20monkeys$Type[i],Blocks=log(data20monkeys$Blocks[i]/data20monkeys$Blocks[i-1]))}))
+#aggregate(Blocks~Type,data=avgs51,mean)
+shapiro.test(avgsTrain$Blocks[avgsTrain$Type=="renv"])
+shapiro.test(avgsTrain$Blocks[avgsTrain$Type=="renvCrois"])
+```
+
+```{r}
+wilcox.test(avgsTrain$Blocks[avgsTrain$Type=="renv"], avgsTrain$Blocks[avgsTrain$Type=="renvCrois"], paired = TRUE, alternative = "less")
+```
+Conclusion : there is a difference between renv and renvCrois
+
+```{r}
+ggplot(avgsTrain) + aes(x = Type, y = Blocks) + geom_boxplot()
+```
+
+## Splitting the Monkeys in two groups
+
+```{r}
+monkeys1_4 <- keep_phases(avgs, 1:4)
+
+monkeys1_12 <- keep_phases(avgs, 1:12)
+monkeys1_12 <- keep_phases(monkeys1_12, 1:4)
+names <- unique(monkeys1_12$Name)
+monkeys1_4 <- monkeys1_4[! (monkeys1_4$Name %in% names),]
+```
+
+```{r}
+step<-seq(from=2,to=nrow(monkeys1_4),by=2)
+
+avgs1_4<-do.call(rbind,lapply(step,function(i){data.frame(Name=monkeys1_4$Name[i],Phase=monkeys1_4$Phase[i],Type=monkeys1_4$Type[i],Blocks=log(monkeys1_4$Blocks[i]/monkeys1_4$Blocks[i-1]))}))
+shapiro.test(avgs1_4$Blocks[avgs1_4$Type=="renv"])
+shapiro.test(avgs1_4$Blocks[avgs1_4$Type=="renvCrois"])
+
+step<-seq(from=2,to=nrow(monkeys1_12),by=2)
+
+avgs1_12<-do.call(rbind,lapply(step,function(i){data.frame(Name=monkeys1_12$Name[i],Phase=monkeys1_12$Phase[i],Type=monkeys1_12$Type[i],Blocks=log(monkeys1_12$Blocks[i]/monkeys1_12$Blocks[i-1]))}))
+shapiro.test(avgs1_12$Blocks[avgs1_12$Type=="renv"])
+shapiro.test(avgs1_12$Blocks[avgs1_12$Type=="renvCrois"])
+```
+```{r}
+avgsTrain
+```
+
+
+```{r}
+wilcox.test(avgs1_4$Blocks[avgs1_4$Type=="renv"], avgs1_4$Blocks[avgs1_4$Type=="renvCrois"], paired = TRUE, alternative = "less")
+wilcox.test(avgs1_12$Blocks[avgs1_12$Type=="renv"], avgs1_12$Blocks[avgs1_12$Type=="renvCrois"], paired = TRUE, alternative = "less")
+```
+
+Conclusion : There is a difference only for the group that did phase 4 but not 12
+
+## Searching for the origins of the difference
+
+```{r}
+order(avgsTrain[avgsTrain$Type=="renvCrois",]$Blocks, decreasing = TRUE)
+avgsTrain[order(avgsTrain$Blocks, decreasing = TRUE),]
+avgsTrain <- avgsTrain[! (avgsTrain$Name == "CAUET"), ]
+
+shapiro.test(avgsTrain$Blocks[avgsTrain$Type=="renv"])
+shapiro.test(avgsTrain$Blocks[avgsTrain$Type=="renvCrois"])
+wilcox.test(avgsTrain$Blocks[avgsTrain$Type=="renv"], avgsTrain$Blocks[avgsTrain$Type=="renvCrois"], paired = TRUE, alternative = "less")
+```
+
+
+```{r}
+avgsTrain <- avgsTrain[! (avgsTrain$Name == "FELIPE"), ]
+
+shapiro.test(avgsTrain$Blocks[avgsTrain$Type=="renv"])
+shapiro.test(avgsTrain$Blocks[avgsTrain$Type=="renvCrois"])
+wilcox.test(avgsTrain$Blocks[avgsTrain$Type=="renv"], avgsTrain$Blocks[avgsTrain$Type=="renvCrois"], paired = TRUE, alternative = "less")
+```
+
+
+```{r}
+ggplot(avgsTrain) + aes(y = Blocks, x = Type) + geom_boxplot()
+```
+
+Conclusion : The difference is not due to the two outliers
+
+# Is renvCoris greater than 0?
+
+
+
+```{r}
+step<-seq(from=2,to=nrow(data20monkeys),by=2)
+avgsTrain<-do.call(rbind,lapply(step,function(i){data.frame(Name=data20monkeys$Name[i],Phase=data20monkeys$Phase[i],Type=data20monkeys$Type[i],Blocks=log(data20monkeys$Blocks[i]/data20monkeys$Blocks[i-1]))}))
+avgsTrain
+
+wilcox.test(avgsTrain[avgsTrain$Type == "renv",]$Blocks, mu = 0)
+wilcox.test(avgsTrain[avgsTrain$Type == "renv",]$Blocks, mu = 0, alternative = "less")
+wilcox.test(avgsTrain[avgsTrain$Type == "renvCrois",]$Blocks, mu = 0)
+wilcox.test(avgsTrain[avgsTrain$Type == "renvCrois",]$Blocks, mu = 0, alternative = "greater")
+```
+
+Conclusion : renvCrois is greater than 0, renv is not smaller than 0
+
+# Reaction Times
+
+```{r}
+check<-data[data$Nom=="ANGELE",]
+check<-check[check$Condition_Exp=="phase1",]
+check<-data.frame(index=1:nrow(check),check)
+ggplot(check)+aes(x=index,y=RT)+geom_line()+facet_wrap(~Score)
+```
+
+## Keeping only the monkeys that reached phase 12
+```{r}
+
+data_RT<-data[data$Nom%in%reached_phase_n(data,12),]
+```
+```{r}
+a1<-aggregate(RT~Score+Nom+Condition_Exp,data=data_RT,mean)
+a2<-aggregate(RT~Score+Nom+Condition_Exp,data=data_RT,sd)
+CV<-a2$RT/a1$RT*100
+CV
+?list
+```
+
+## Check if there is a difference between 1 and 0 in RT
+
+```{r}
+Names<-unique(data_RT$Nom)
+Phases<-unique(data$Condition_Exp)
+check_RT<-list()
+
+for ( i in 1:length(Names)){
+  check_RT[[i]]<-list()
+  for(j in 1:length(Phases)){
+    check_RT[[i]][[j]]<-list()
+    for(k in 1:2){
+      check_RT[[i]][[j]][[k]]<-list()
+      check_RT[[i]][[j]][[k]]<-data_RT[data_RT$Nom==Names[i]&data_RT$Condition_Exp==Phases[j]&data_RT$Score==k-1,"RT"]
+      
+    }
+    names(check_RT[[i]][[j]])<-c("0","1")
+  }
+  names(check_RT[[i]])<-Phases
+}
+names(check_RT)<-Names
+check_RT$ANGELE$phase2
+```
+
+### Shapiro tests for all elements of the list
+
+```{r}
+shapiro_RT<-list()
+shapiro_PI<-list()
+for (i in 1:length(check_RT)){
+  shapiro_RT[[i]]<-list()
+  shapiro_PI[[i]]<-list()
+  for (j in 1:length(check_RT[[i]])){
+    shapiro_RT[[i]][[j]]<-list()
+    shapiro_PI[[i]][[j]]<-list()
+    for (k in 1:length(check_RT[[i]][[j]])){
+      shapiro_RT[[i]][[j]][[k]]<-list()
+      shapiro_PI[[i]][[j]][[k]]<-list()
+      to_shapiro<-data.frame(check_RT[[i]][[j]][[k]])
+      shapiro_RT[[i]][[j]][[k]]<-shapiro.test(to_shapiro[,1])
+      shapiro_PI[[i]][[j]][[k]]<-data.frame(Name=names(check_RT)[i],Phase=names(check_RT[[i]])[j],Score=names(check_RT[[i]][[j]])[k],shapiro.test(as.numeric(to_shapiro[,1]))$p.value)
+    }
+    names(shapiro_RT[[i]][[j]])<-c("0","1")
+    names(shapiro_PI[[i]][[j]])<-c("0","1")
+  }
+  names(shapiro_RT[[i]])<-Phases
+  names(shapiro_PI[[i]])<-Phases
+}
+names(shapiro_RT)<-Names
+names(shapiro_PI)<-Names
+for(i in 1:length(shapiro_PI)){
+  for(j in 1:length(shapiro_PI[[i]])){
+    shapiro_PI[[i]][[j]]<-do.call(rbind,shapiro_PI[[i]][[j]])
+  }
+  shapiro_PI[[i]]<-do.call(rbind,shapiro_PI[[i]])
+}
+shapiro_PI<-do.call(rbind,shapiro_PI)
+shapiro_PI
+```
+
+### Pairwise Wilcoxon Tests
+
+```{r}
+wilcox_RT<-list()
+wilcox_PI<-list()
+for (i in 1:length(check_RT)){
+  wilcox_RT[[i]]<-list()
+  wilcox_PI[[i]]<-list()
+  for (j in 1:length(check_RT[[i]])){
+    wilcox_RT[[i]][[j]]<-list()
+    wilcox_PI[[i]][[j]]<-list()
+    to_wilcox1<-data.frame(check_RT[[i]][[j]][[1]])
+    to_wilcox2<-data.frame(check_RT[[i]][[j]][[2]])
+    wilcox_RT[[i]][[j]]<-wilcox.test(to_wilcox1[,1],to_wilcox2[,1])
+    wilcox_PI[[i]][[j]]<-data.frame(Name=names(check_RT)[i],Phase=names(check_RT[[i]])[j],wilcox.test(to_wilcox1[,1],to_wilcox2[,1])$p.value)
+  }
+  names(wilcox_RT[[i]])<-Phases
+  names(wilcox_PI[[i]])<-Phases
+}
+names(wilcox_RT)<-Names
+names(wilcox_PI)<-Names
+for(i in 1:length(wilcox_PI)){
+  wilcox_PI[[i]]<-do.call(rbind,wilcox_PI[[i]])
+}
+wilcox_PI<-do.call(rbind,wilcox_PI)
+
+wilcox_PI<-data.frame(wilcox_PI,different=wilcox_PI$wilcox.test.to_wilcox1...1...to_wilcox2...1...p.value<=0.05)
+
+plot(wilcox_PI$different)
+```
+
+```{r}
+a1<-aggregate(different~Name,data=wilcox_PI,mean)
+a1$different<-a1$different*12
+a1
+```
+```{r}
+ggplot(data_RT[data_RT$Nom=="ARIELLE",])+aes(group=Score,y=RT)+geom_boxplot()+facet_wrap(~Condition_Exp)
+```
+
+## Check if there is a difference between 1 and 0 in RT (outliers removed)
+
+```{r}
+Names<-unique(data_RT$Nom)
+Phases<-unique(data$Condition_Exp)
+check_RT<-list()
+
+for ( i in 1:length(Names)){
+  check_RT[[i]]<-list()
+  for(j in 1:length(Phases)){
+    check_RT[[i]][[j]]<-list()
+    for(k in 1:2){
+      check_RT[[i]][[j]][[k]]<-list()
+      check_RT[[i]][[j]][[k]]<-data_RT[data_RT$Nom==Names[i]&data_RT$Condition_Exp==Phases[j]&data_RT$Score==k-1,"RT"]
+      vect_temp<-data.frame(check_RT[[i]][[j]][[k]])
+      sd_temp<-sd(vect_temp[,1])
+      vect_temp<-vect_temp[vect_temp[,1]>=max(mean(vect_temp[,1])-1.96*sd_temp,250)&vect_temp[,1]<=mean(vect_temp[,1])+1.96*sd_temp,1] # TO CHECK AGAIN
+      check_RT[[i]][[j]][[k]]<-vect_temp
+    }
+    names(check_RT[[i]][[j]])<-c("0","1")
+  }
+  names(check_RT[[i]])<-Phases
+}
+names(check_RT)<-Names
+check_RT$ANGELE$phase2[[1]]
+```
+
+### Shapiro tests for all elements of the list
+
+```{r}
+shapiro_RT<-list()
+shapiro_PI<-list()
+for (i in 1:length(check_RT)){
+  shapiro_RT[[i]]<-list()
+  shapiro_PI[[i]]<-list()
+  for (j in 1:length(check_RT[[i]])){
+    shapiro_RT[[i]][[j]]<-list()
+    shapiro_PI[[i]][[j]]<-list()
+    for (k in 1:length(check_RT[[i]][[j]])){
+      shapiro_RT[[i]][[j]][[k]]<-list()
+      shapiro_PI[[i]][[j]][[k]]<-list()
+      to_shapiro<-data.frame(check_RT[[i]][[j]][[k]])
+      shapiro_RT[[i]][[j]][[k]]<-shapiro.test(to_shapiro[,1])
+      shapiro_PI[[i]][[j]][[k]]<-data.frame(Name=names(check_RT)[i],Phase=names(check_RT[[i]])[j],Score=names(check_RT[[i]][[j]])[k],shapiro.test(as.numeric(to_shapiro[,1]))$p.value)
+    }
+    names(shapiro_RT[[i]][[j]])<-c("0","1")
+    names(shapiro_PI[[i]][[j]])<-c("0","1")
+  }
+  names(shapiro_RT[[i]])<-Phases
+  names(shapiro_PI[[i]])<-Phases
+}
+names(shapiro_RT)<-Names
+names(shapiro_PI)<-Names
+for(i in 1:length(shapiro_PI)){
+  for(j in 1:length(shapiro_PI[[i]])){
+    shapiro_PI[[i]][[j]]<-do.call(rbind,shapiro_PI[[i]][[j]])
+  }
+  shapiro_PI[[i]]<-do.call(rbind,shapiro_PI[[i]])
+}
+shapiro_PI<-do.call(rbind,shapiro_PI)
+shapiro_PI
+```
+
+### Pairwise Wilcoxon Tests
+
+```{r}
+wilcox_RT<-list()
+wilcox_PI<-list()
+for (i in 1:length(check_RT)){
+  wilcox_RT[[i]]<-list()
+  wilcox_PI[[i]]<-list()
+  for (j in 1:length(check_RT[[i]])){
+    wilcox_RT[[i]][[j]]<-list()
+    wilcox_PI[[i]][[j]]<-list()
+    to_wilcox1<-data.frame(check_RT[[i]][[j]][[1]])
+    to_wilcox2<-data.frame(check_RT[[i]][[j]][[2]])
+    wilcox_RT[[i]][[j]]<-wilcox.test(to_wilcox1[,1],to_wilcox2[,1])
+    wilcox_PI[[i]][[j]]<-data.frame(Name=names(check_RT)[i],Phase=names(check_RT[[i]])[j],wilcox.test(to_wilcox1[,1],to_wilcox2[,1])$p.value)
+  }
+  names(wilcox_RT[[i]])<-Phases
+  names(wilcox_PI[[i]])<-Phases
+}
+names(wilcox_RT)<-Names
+names(wilcox_PI)<-Names
+for(i in 1:length(wilcox_PI)){
+  wilcox_PI[[i]]<-do.call(rbind,wilcox_PI[[i]])
+}
+wilcox_PI<-do.call(rbind,wilcox_PI)
+
+wilcox_PI<-data.frame(wilcox_PI,different=wilcox_PI$wilcox.test.to_wilcox1...1...to_wilcox2...1...p.value<=0.05)
+
+plot(wilcox_PI$different)
+```
+
+```{r}
+a1<-aggregate(different~Name,data=wilcox_PI,mean)
+a1$different<-a1$different*12
+a1
+```
+## See the direction of the differences
+
+### For Arielle
+
+```{r}
+Arielle_RT<-get_01_for_monkey(check_RT,"ARIELLE")
+```
+
+### For Angele
+
+```{r}
+perform_01(check_RT,"ANGELE",wilcox_PI)
+```
+
+```{r}
+pers<-list()
+k<-1
+for(i in unique(wilcox_PI$Name)){
+  pers[[k]]<-perform_01(check_RT,i,wilcox_PI)
+}
+```
+
